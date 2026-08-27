@@ -33,8 +33,8 @@ public class Libp2pPeerFactoryBuilder(IServiceProvider? serviceProvider = defaul
     private bool addWebRtcDirect;
 
     /// <summary>
-    /// Exposes the service collection for protocol integration.
-    /// Protocols can register their services here before the peer is built.
+    /// Exposes services owned by a standalone builder. Applications using dependency injection
+    /// should register protocol packages on their application service collection.
     /// </summary>
     public IServiceCollection Services => InternalServices;
 

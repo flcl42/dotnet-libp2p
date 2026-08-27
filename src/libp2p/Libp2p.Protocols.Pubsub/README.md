@@ -6,7 +6,7 @@ See the [libp2p pubsub spec](https://github.com/libp2p/specs/tree/master/pubsub)
 
 ## Setup
 
-Enable pubsub on the standard stack with `WithPubsub()`:
+Register pubsub settings and services and enable the protocol family with `AddPubsub()`:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +16,8 @@ using Nethermind.Libp2p.Core;
 using Nethermind.Libp2p.Protocols.Pubsub;
 
 ServiceProvider provider = new ServiceCollection()
-    .AddLibp2p(builder => builder.WithPubsub())
+    .AddLibp2p()
+    .AddPubsub(settings => settings.HeartbeatInterval = 1_000)
     .BuildServiceProvider();
 
 ILocalPeer peer = provider.GetRequiredService<IPeerFactory>().Create();
@@ -25,6 +26,9 @@ await peer.StartListenAsync();
 PubsubRouter router = provider.GetRequiredService<PubsubRouter>();
 await router.StartAsync(peer);
 ```
+
+The existing `AddLibp2p(builder => builder.WithPubsub())` form remains supported. In that form,
+settings can still be supplied by registering a `PubsubSettings` singleton.
 
 `StartAsync` connects the router to the local peer and starts heartbeat and reconnect loops. Call it once for the peer that owns the router.
 

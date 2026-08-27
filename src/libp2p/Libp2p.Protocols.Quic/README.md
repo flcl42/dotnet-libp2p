@@ -2,6 +2,9 @@
 
 See the [libp2p spec](https://github.com/libp2p/specs/tree/master/quic)
 
+Enable QUIC and register its protocol through dependency injection with `services.AddQuic()`.
+The existing `WithQuic()` peer-builder method remains supported.
+
 ## Native dependencies
 
 ### Windows

@@ -4,6 +4,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Nethermind.Libp2p.Core;
 using Nethermind.Libp2p.Protocols.AutoTls.Internal;
 
 namespace Nethermind.Libp2p.Protocols.AutoTls;
@@ -12,11 +13,9 @@ public static class AutoTlsServiceCollectionExtensions
 {
     public static IServiceCollection AddAutoTls(this IServiceCollection services, Action<AutoTlsOptions>? configure = null)
     {
-        services.AddOptions<AutoTlsOptions>();
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddLibp2pSettings(configure);
 
         services.AddHttpClient<P2pForgeClient>();
 

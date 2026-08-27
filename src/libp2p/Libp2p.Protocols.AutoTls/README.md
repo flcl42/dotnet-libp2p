@@ -22,10 +22,13 @@ can consume `ITlsCertificateProvider` for `/wss` listeners.
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
+using Nethermind.Libp2p;
+using Nethermind.Libp2p.Protocols;
 using Nethermind.Libp2p.Protocols.AutoTls;
 
 services
-    .AddLibp2p(builder => builder.WithWebSockets())
+    .AddLibp2p()
+    .AddWebSockets()
     .AddAutoTls(opts =>
     {
         opts.ContactEmail = "you@example.com";

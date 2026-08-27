@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Nethermind.Libp2p;
+using Nethermind.Libp2p.Protocols.Pubsub;
 using PubsubChat;
 
 Regex omittedLogs = new(".*(MDnsDiscoveryProtocol|IpTcpProtocol).*");
@@ -12,7 +13,8 @@ Regex omittedLogs = new(".*(MDnsDiscoveryProtocol|IpTcpProtocol).*");
 bool headless = args.Contains("--headless");
 
 var services = new ServiceCollection()
-    .AddLibp2p(builder => builder.WithPubsub())
+    .AddLibp2p()
+    .AddPubsub()
     .AddLogging(builder =>
     {
         builder.SetMinimumLevel(args.Contains("--trace") ? LogLevel.Trace : LogLevel.Information)

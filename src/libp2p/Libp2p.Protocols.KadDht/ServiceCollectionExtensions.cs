@@ -6,38 +6,47 @@ using Libp2p.Protocols.KadDht.Kademlia;
 using Libp2p.Protocols.KadDht.Storage;
 using Libp2p.Protocols.KadDht.Transport;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Nethermind.Libp2p.Core;
 using Nethermind.Libp2p.Core.Discovery;
+using System.Runtime.CompilerServices;
 
 namespace Libp2p.Protocols.KadDht;
 
 public static class ServiceCollectionExtensions
 {
     public const string ProtocolId = "/ipfs/kad/1.0.0";
+    private static readonly ConditionalWeakTable<ILibp2pPeerFactoryBuilder, object> ActivatedBuilders = new();
 
     public static IServiceCollection AddKadDht(this IServiceCollection services,
         Action<KadDhtOptions>? configureOptions = null)
     {
-        var options = new KadDhtOptions();
-        configureOptions?.Invoke(options);
-        services.AddSingleton(options);
+        ArgumentNullException.ThrowIfNull(services);
 
-        services.AddSingleton<IRecordValidator>(_ => CompositeRecordValidator.CreateDefault());
+        services.AddLibp2pSettings(configureOptions);
+        services.TryAddSingleton<IRecordValidator>(_ => CompositeRecordValidator.CreateDefault());
 
-        services.AddSingleton<IValueStore>(sp =>
-            new InMemoryValueStore(options.MaxStoredValues, sp.GetService<ILoggerFactory>()));
-        services.AddSingleton<IProviderStore>(sp =>
-            new InMemoryProviderStore(options.MaxProvidersPerKey, sp.GetService<ILoggerFactory>()));
-
-        services.AddSingleton<SharedDhtState>(sp =>
+        services.TryAddSingleton<IValueStore>(sp =>
         {
+            KadDhtOptions options = sp.GetRequiredService<KadDhtOptions>();
+            return new InMemoryValueStore(options.MaxStoredValues, sp.GetService<ILoggerFactory>());
+        });
+        services.TryAddSingleton<IProviderStore>(sp =>
+        {
+            KadDhtOptions options = sp.GetRequiredService<KadDhtOptions>();
+            return new InMemoryProviderStore(options.MaxProvidersPerKey, sp.GetService<ILoggerFactory>());
+        });
+
+        services.TryAddSingleton<SharedDhtState>(sp =>
+        {
+            KadDhtOptions options = sp.GetRequiredService<KadDhtOptions>();
             var state = new SharedDhtState(null, sp.GetService<ILoggerFactory>());
             state.KValue = options.KSize;
             return state;
         });
 
-        services.AddSingleton<Integration.LibP2pKademliaMessageSender>(sp =>
+        services.TryAddSingleton<Integration.LibP2pKademliaMessageSender>(sp =>
         {
             var localPeer = sp.GetRequiredService<ILocalPeer>();
             var loggerFactory = sp.GetService<ILoggerFactory>();
@@ -45,11 +54,11 @@ public static class ServiceCollectionExtensions
             return new Integration.LibP2pKademliaMessageSender(localPeer, loggerFactory,
                 onPeerDiscovered: peerStore is not null ? node => StorePeerAddresses(node, peerStore) : null);
         });
-        services.AddSingleton<Integration.IDhtMessageSender>(sp => sp.GetRequiredService<Integration.LibP2pKademliaMessageSender>());
-        services.AddSingleton<Kademlia.IKademliaMessageSender<PublicKey, DhtNode>>(sp =>
+        services.TryAddSingleton<Integration.IDhtMessageSender>(sp => sp.GetRequiredService<Integration.LibP2pKademliaMessageSender>());
+        services.TryAddSingleton<Kademlia.IKademliaMessageSender<PublicKey, DhtNode>>(sp =>
             sp.GetRequiredService<Integration.LibP2pKademliaMessageSender>());
 
-        services.AddSingleton<KadDhtProtocol>(sp =>
+        services.TryAddSingleton<KadDhtProtocol>(sp =>
         {
             var localPeer = sp.GetRequiredService<ILocalPeer>();
             var messageSender = sp.GetRequiredService<Kademlia.IKademliaMessageSender<PublicKey, DhtNode>>();
@@ -71,10 +80,30 @@ public static class ServiceCollectionExtensions
             return protocol;
         });
 
+        services.AddLibp2pFeature<KadDhtFeature>();
         return services;
     }
 
     public static ILibp2pPeerFactoryBuilder WithKadDht(this ILibp2pPeerFactoryBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        if (!ActivatedBuilders.TryAdd(builder, new object()))
+        {
+            return builder;
+        }
+
+        try
+        {
+            return ActivateKadDht(builder);
+        }
+        catch
+        {
+            ActivatedBuilders.Remove(builder);
+            throw;
+        }
+    }
+
+    private static ILibp2pPeerFactoryBuilder ActivateKadDht(ILibp2pPeerFactoryBuilder builder)
     {
         var serviceProvider = builder.ServiceProvider;
         var loggerFactory = serviceProvider.GetService<ILoggerFactory>();
@@ -152,6 +181,21 @@ public static class ServiceCollectionExtensions
             validator: validator);
 
         return builder;
+    }
+
+    private sealed class KadDhtFeature : ILibp2pFeature
+    {
+        public KadDhtFeature() { }
+
+        public void Configure(IPeerFactoryBuilder builder)
+        {
+            if (builder is not ILibp2pPeerFactoryBuilder libp2pBuilder)
+            {
+                throw new InvalidOperationException($"{nameof(KadDhtFeature)} requires an {nameof(ILibp2pPeerFactoryBuilder)}.");
+            }
+
+            libp2pBuilder.WithKadDht();
+        }
     }
 
     /// <summary>

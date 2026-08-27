@@ -8,8 +8,9 @@ namespace Nethermind.Libp2p.Core;
 public interface ILibp2pPeerFactoryBuilder : IPeerFactoryBuilder
 {
     /// <summary>
-    /// Provides access to the underlying service collection for advanced protocol integration.
-    /// This enables protocols like KadDHT to register their services properly.
+    /// Provides access to services owned by a standalone builder.
+    /// When the builder is created by dependency injection, register protocol packages on the
+    /// application's <see cref="IServiceCollection"/> before building the service provider.
     /// </summary>
     IServiceCollection Services { get; }
 

@@ -58,7 +58,7 @@ internal static class Program
             options.OperationTimeout = TimeSpan.FromSeconds(30);
         });
 
-        services.AddLibp2p(builder => builder.WithKadDht());
+        services.AddLibp2p();
 
         // Register ILocalPeer so the KadDhtProtocol singleton can resolve it.
         var identity = new Identity();

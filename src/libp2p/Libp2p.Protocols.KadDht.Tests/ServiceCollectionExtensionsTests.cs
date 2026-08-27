@@ -141,15 +141,30 @@ public class ServiceCollectionExtensionsTests
 
 
         var result = builder.WithKadDht();
+        var repeatedResult = builder.WithKadDht();
 
         // Assert
         Assert.That(result, Is.SameAs(builder), "Should return the builder instance");
+        Assert.That(repeatedResult, Is.SameAs(builder), "Repeated activation should return the builder instance");
 
         var registeredProtocolIds = builder.Protocols.Select(p => p.Id).ToArray();
 
         // Single unified protocol per spec — all message types dispatched via Message.Type
         Assert.That(registeredProtocolIds, Has.Length.EqualTo(1));
         Assert.That(registeredProtocolIds[0], Is.EqualTo("/ipfs/kad/1.0.0"));
+    }
+
+    [Test]
+    public void AddKadDht_RegistersFeatureThatActivatesProtocolHandlers()
+    {
+        _services.AddKadDht();
+        using var serviceProvider = _services.BuildServiceProvider();
+        var builder = new TestPeerFactoryBuilder(serviceProvider);
+
+        serviceProvider.GetRequiredService<ILibp2pFeature>().Configure(builder);
+
+        Assert.That(builder.Protocols.Select(protocol => protocol.Id),
+            Is.EquivalentTo(new[] { "/ipfs/kad/1.0.0" }));
     }
 
     [Test]

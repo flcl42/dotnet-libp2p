@@ -42,31 +42,36 @@ This library implements the Kademlia DHT protocol as specified in the [libp2p sp
 ```csharp
 using Libp2p.Protocols.KadDht;
 using Microsoft.Extensions.DependencyInjection;
+using Nethermind.Libp2p;
+using Nethermind.Libp2p.Core;
 
-// Add to service collection
-services.AddKademliaDht(options =>
-{
-    options.K = 20;                           // Replication factor
-    options.RecordTtl = TimeSpan.FromHours(24); // Record expiration
-    options.OperationTimeout = TimeSpan.FromSeconds(30);
-});
-
-// Or use with libp2p builder
-var peerFactory = Libp2pPeerFactoryBuilder.Create()
-    .AddKademliaDht(options =>
+// Register the core peer and activate Kad-DHT as one DI feature.
+var services = new ServiceCollection()
+    .AddLibp2p()
+    .AddKadDht(options =>
     {
-        options.BucketSize = 20;
-        options.Alpha = 3; // Concurrency factor
-    })
-    .Build();
+        options.KSize = 20;                         // Replication factor
+        options.RecordTtl = TimeSpan.FromHours(24); // Record expiration
+        options.OperationTimeout = TimeSpan.FromSeconds(30);
+    });
+
+var identity = new Identity();
+services.AddSingleton<ILocalPeer>(sp =>
+    sp.GetRequiredService<IPeerFactory>().Create(identity));
+
+using ServiceProvider provider = services.BuildServiceProvider();
+ILocalPeer peer = provider.GetRequiredService<ILocalPeer>();
+KadDhtProtocol kadDht = provider.GetRequiredService<KadDhtProtocol>();
 ```
+
+`AddKadDht()` registers the settings and services and activates the protocol handlers. Existing
+code that also calls `WithKadDht()` remains supported; repeated activation is idempotent.
 
 ### Network Integration
 
 ```csharp
-// Create and start a DHT node
-var peer = peerFactory.Create(identity);
-await peer.ListenAsync("/ip4/0.0.0.0/tcp/0");
+// Start the DHT node created above.
+await peer.StartListenAsync([Multiaddress.Decode("/ip4/0.0.0.0/tcp/0")]);
 
 // Bootstrap with known peers
 var bootstrapNodes = new[]
@@ -238,46 +243,37 @@ This package provides a complete implementation of the Kademlia DHT protocol as 
 ### Basic Setup
 
 ```csharp
-// Configure DHT options
-var options = new KadDhtOptions
-{
-    Mode = KadDhtMode.Server,  // or KadDhtMode.Client
-    KSize = 20,                // K-bucket size
-    Alpha = 3,                 // Concurrency parameter
-    MaxStoredValues = 1000,    // Storage limits
-    RecordTtl = TimeSpan.FromHours(24)
-};
+// Add complete Kad-DHT to the libp2p service collection.
+var services = new ServiceCollection()
+    .AddLibp2p()
+    .AddQuic()
+    .AddKadDht(options =>
+    {
+        options.Mode = KadDhtMode.Server;
+        options.KSize = 20;
+        options.Alpha = 3;
+    });
 
-// Define bootstrap nodes (known DHT participants)
-var bootstrapNodes = new[]
-{
-    new DhtNode(new PeerId("12D3KooW..."), new PublicKey(publicKeyBytes), new[] { "/ip4/1.2.3.4/tcp/4001" }),
-    // Add more bootstrap nodes...
-};
+var identity = new Identity();
+services.AddSingleton<ILocalPeer>(sp =>
+    sp.GetRequiredService<IPeerFactory>().Create(identity));
 
-// Add complete Kad-DHT to libp2p peer factory
-var peer = new ServiceCollection()
-    .AddLibp2p(builder => builder
-        .WithQuic()
-        .AddKadDht(options =>
-        {
-            options.Mode = KadDhtMode.Server;
-            options.KSize = 20;
-            options.Alpha = 3;
-        }, bootstrapNodes))
-    .BuildServiceProvider()
-    .GetRequiredService<ILocalPeer>();
+using ServiceProvider provider = services.BuildServiceProvider();
+ILocalPeer peer = provider.GetRequiredService<ILocalPeer>();
+KadDhtProtocol kadDht = provider.GetRequiredService<KadDhtProtocol>();
 
 // Start DHT participation (run in background)
-_ = Task.Run(() => peer.RunKadDhtAsync(cancellationToken));
+_ = Task.Run(async () =>
+{
+    await kadDht.BootstrapAsync(cancellationToken);
+    await kadDht.RunAsync(cancellationToken);
+});
 ```
 
 ### DHT Operations
 
 ```csharp
-// Get the DHT protocol instance
-var kadDht = peer.GetKadDht();
-if (kadDht == null) throw new InvalidOperationException("Kad-DHT not configured");
+// Use the KadDhtProtocol resolved from dependency injection above.
 
 // Store a value (automatically replicated to K closest nodes)
 byte[] key = Encoding.UTF8.GetBytes("my-key");
