@@ -15,6 +15,10 @@ namespace Nethermind.Libp2p;
 
 public static class ServiceProviderExtensions
 {
+    /// <summary>
+    /// Registers the default libp2p peer factory and its supporting services.
+    /// Repeated calls are idempotent; the first registered factory setup is retained.
+    /// </summary>
     public static IServiceCollection AddLibp2p(this IServiceCollection services, Func<ILibp2pPeerFactoryBuilder, IPeerFactoryBuilder>? factorySetup = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -24,6 +28,16 @@ public static class ServiceProviderExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers a custom peer factory builder and its supporting services.
+    /// Features are applied to the builder returned by <paramref name="factorySetup"/>, when provided.
+    /// Repeated calls are idempotent; the first registered builder and factory setup are retained.
+    /// </summary>
+    /// <remarks>
+    /// Built-in protocol package features require the resulting builder to implement
+    /// <see cref="ILibp2pPeerFactoryBuilder"/>. Custom features may support other
+    /// <see cref="IPeerFactoryBuilder"/> implementations.
+    /// </remarks>
     public static IServiceCollection AddLibp2p<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPeerFactoryBuilder>(this IServiceCollection services, Func<IPeerFactoryBuilder, IPeerFactoryBuilder>? factorySetup = null)
         where TPeerFactoryBuilder : IPeerFactoryBuilder
     {
@@ -40,12 +54,13 @@ public static class ServiceProviderExtensions
         services.TryAddSingleton<IPeerFactoryBuilder>(sp =>
         {
             IPeerFactoryBuilder builder = ActivatorUtilities.CreateInstance<TPeerFactoryBuilder>(sp);
+            builder = factorySetup is null ? builder : factorySetup(builder);
             foreach (ILibp2pFeature feature in sp.GetServices<ILibp2pFeature>())
             {
                 feature.Configure(builder);
             }
 
-            return factorySetup is null ? builder : factorySetup(builder);
+            return builder;
         });
         services.TryAddSingleton(sp => sp.GetRequiredService<IPeerFactoryBuilder>().Build());
         services.TryAddSingleton<PubsubRouter>();

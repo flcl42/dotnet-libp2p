@@ -613,6 +613,7 @@
           "Microsoft.Extensions.DependencyInjection": "[10.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
+          "Microsoft.Extensions.Options": "[10.0.0, )",
           "Nethermind.Multiformats.Address": "[1.1.10, )",
           "SimpleBase": "[4.0.2, )"
         }

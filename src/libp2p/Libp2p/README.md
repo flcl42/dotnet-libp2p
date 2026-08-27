@@ -22,6 +22,11 @@ Settings registered by a package participate in the standard `Microsoft.Extensio
 pipeline. The same configured instance is also directly injectable as its settings type so
 existing protocol constructors and application registrations continue to work.
 
+The legacy pattern of registering a settings object directly with `AddSingleton` remains
+supported for constructors that inject that settings type. A directly registered object does
+not configure `IOptions<T>`; use the package configuration delegate or the standard options
+pipeline when both injection styles must observe the same values.
+
 The builder callback and `With...` methods remain supported for manual stack customization:
 
 ```csharp
@@ -55,3 +60,10 @@ public sealed class MyProtocolFeature : ILibp2pFeature
 
 Features are resolved through dependency injection and applied in registration order when the
 peer factory builder is created. Package registration may appear before or after `AddLibp2p()`.
+If the builder callback returns a replacement builder, features are applied to that returned
+builder. Built-in package features require an `ILibp2pPeerFactoryBuilder`; custom builders that
+only implement `IPeerFactoryBuilder` can use custom features designed for that builder type.
+
+Core and package registrations are idempotent and use `TryAdd` semantics. Register custom
+service implementations before `AddLibp2p()` or the corresponding package extension. If
+`AddLibp2p()` is called repeatedly, the first builder type and callback are retained.

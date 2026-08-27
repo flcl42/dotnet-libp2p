@@ -133,6 +133,28 @@ public class DependencyInjectionActivationTests
     }
 
     [Test]
+    public void AddLibp2p_AppliesFeaturesToBuilderReturnedByFactorySetup()
+    {
+        var services = new ServiceCollection();
+        Libp2pPeerFactoryBuilder? replacementBuilder = null;
+        services.AddQuic();
+        services.AddLibp2p(builder => replacementBuilder = new Libp2pPeerFactoryBuilder(builder.ServiceProvider));
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+
+        _ = serviceProvider.GetRequiredService<IPeerFactory>();
+
+        IProtocolStackSettings stack = serviceProvider.GetRequiredService<IProtocolStackSettings>();
+        IProtocol[] transports = stack.TopProtocols!.Select(protocol => protocol.Protocol).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(serviceProvider.GetRequiredService<IPeerFactoryBuilder>(), Is.SameAs(replacementBuilder));
+            Assert.That(transports.OfType<QuicProtocol>().Single(), Is.SameAs(serviceProvider.GetRequiredService<QuicProtocol>()));
+        });
+    }
+
+    [Test]
     public void AddLibp2p_LegacyBuilderSetupAndSettingsSingletonRemainSupported()
     {
         var settings = new PubsubSettings { HeartbeatInterval = 125 };
@@ -147,6 +169,9 @@ public class DependencyInjectionActivationTests
         Assert.Multiple(() =>
         {
             Assert.That(serviceProvider.GetRequiredService<PubsubSettings>(), Is.SameAs(settings));
+            Assert.That(serviceProvider.GetRequiredService<IOptions<PubsubSettings>>().Value, Is.Not.SameAs(settings));
+            Assert.That(serviceProvider.GetRequiredService<IOptions<PubsubSettings>>().Value.HeartbeatInterval,
+                Is.EqualTo(PubsubSettings.Default.HeartbeatInterval));
             Assert.That(GetProtocols(serviceProvider).OfType<FloodsubProtocol>(), Has.Exactly(1).Items);
         });
     }

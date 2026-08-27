@@ -33,6 +33,12 @@ public static class Libp2pServiceCollectionExtensions
     /// instance directly injectable for compatibility with protocol constructors that take a settings POCO.
     /// Multiple configuration delegates are applied in registration order.
     /// </summary>
+    /// <remarks>
+    /// A settings instance registered directly with <c>AddSingleton</c> remains the source for direct
+    /// <typeparamref name="TSettings"/> injection for legacy compatibility, but it does not configure
+    /// <c>IOptions&lt;TSettings&gt;</c>. Use this method's configuration delegate (or the options pipeline)
+    /// when both injection styles must observe the same configured instance.
+    /// </remarks>
     public static IServiceCollection AddLibp2pSettings<TSettings>(
         this IServiceCollection services,
         Action<TSettings>? configure = null)

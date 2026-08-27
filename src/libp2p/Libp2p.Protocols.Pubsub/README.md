@@ -28,7 +28,9 @@ await router.StartAsync(peer);
 ```
 
 The existing `AddLibp2p(builder => builder.WithPubsub())` form remains supported. In that form,
-settings can still be supplied by registering a `PubsubSettings` singleton.
+settings can still be supplied by registering a `PubsubSettings` singleton. That legacy singleton
+is used for direct `PubsubSettings` injection but does not configure `IOptions<PubsubSettings>`;
+prefer the `AddPubsub` configuration delegate when options consumers are present.
 
 `StartAsync` connects the router to the local peer and starts heartbeat and reconnect loops. Call it once for the peer that owns the router.
 
