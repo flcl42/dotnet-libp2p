@@ -13,7 +13,7 @@ public class IdentifyNotifier
         {
             ulong seq = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            foreach (var session in libp2pPeer.Sessions.ToList())
+            foreach (ISession session in ((ILocalPeer)libp2pPeer).Sessions)
             {
                 _ = session.DialAsync<IdentifyPushProtocol, ulong, ulong>(seq);
             }

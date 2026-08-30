@@ -24,6 +24,22 @@ ISession session = await peer.DialAsync(remoteAddress);
 
 `ILocalPeer.DialAsync` establishes the lower stack first: transport connection, protocol negotiation, encryption or authentication, and stream multiplexing. Once the session exists, application protocols can be opened over it.
 
+## Inspecting current sessions
+
+`ILocalPeer.Sessions` is a non-null, stable, peer-owned live view of the current sessions. It exposes no collection mutation APIs:
+
+```csharp
+IReadOnlyCollection<ISession> sessions = peer.Sessions;
+ISession[] snapshot = sessions.ToArray();
+Console.WriteLine($"{snapshot.Length} sessions are currently registered.");
+```
+
+Sessions enter the view during session upgrade and leave it when disconnected. `Count` and each enumeration are synchronized with those lifecycle changes; each enumeration uses a point-in-time snapshot. Calling `ToArray()` makes that snapshot explicit when subsequent work spans `await` calls. Later `Count` calls and enumerations reflect the latest sessions, while an existing enumeration or array remains unchanged.
+
+A session enters the view during upgrade, before its initialization and `OnConnected` have necessarily completed. Use the session returned by `DialAsync` or delivered through `OnConnected` when fully initialized sessions are required.
+
+Applications should use `ILocalPeer.Sessions`. The legacy concrete `LocalPeer.Sessions` collection remains mutable for source compatibility, but direct mutation is unsupported.
+
 ## Dialing application protocols
 
 Use `DialAsync<TProtocol>()` for protocols that do not need a request object:
