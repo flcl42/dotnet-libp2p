@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.Collections.ObjectModel;
+using Nethermind.Libp2p.Protocols;
 
 namespace Nethermind.Libp2p.Core.Tests;
 
@@ -83,6 +84,29 @@ internal class LocalPeerSessionsTests
             Assert.That(enumerator.MoveNext(), Is.False);
             Assert.That(sessions.Single(), Is.SameAs(retainedSession));
         });
+    }
+
+    [Test]
+    public void IdentifyNotifier_UsesSynchronizedSessionView()
+    {
+        LocalPeer peer = CreatePeer();
+        new IdentifyNotifier().TrackChanges(peer);
+        using ManualResetEventSlim notificationStarted = new();
+        Task notificationTask;
+
+        lock (peer.Sessions)
+        {
+            notificationTask = Task.Run(() =>
+            {
+                notificationStarted.Set();
+                peer.ListenAddresses.Add("/ip4/127.0.0.1/tcp/0");
+            });
+
+            Assert.That(notificationStarted.Wait(TimeSpan.FromSeconds(2)), Is.True);
+            Assert.That(notificationTask.Wait(TimeSpan.FromMilliseconds(100)), Is.False);
+        }
+
+        Assert.That(notificationTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
     }
 
     private static LocalPeer CreatePeer()
