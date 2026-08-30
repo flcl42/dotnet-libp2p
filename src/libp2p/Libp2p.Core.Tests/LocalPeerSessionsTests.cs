@@ -56,6 +56,35 @@ internal class LocalPeerSessionsTests
         });
     }
 
+    [Test]
+    public async Task InterfaceView_EnumerationRemainsStableWhenSessionIsRemoved()
+    {
+        LocalPeer peer = CreatePeer();
+        LocalPeer.Session removedSession = new(peer);
+        LocalPeer.Session retainedSession = new(peer);
+
+        lock (peer.Sessions)
+        {
+            peer.Sessions.Add(removedSession);
+            peer.Sessions.Add(retainedSession);
+        }
+
+        IReadOnlyCollection<ISession> sessions = ((ILocalPeer)peer).Sessions;
+        using IEnumerator<ISession> enumerator = sessions.GetEnumerator();
+
+        await removedSession.DisconnectAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(enumerator.MoveNext(), Is.True);
+            Assert.That(enumerator.Current, Is.SameAs(removedSession));
+            Assert.That(enumerator.MoveNext(), Is.True);
+            Assert.That(enumerator.Current, Is.SameAs(retainedSession));
+            Assert.That(enumerator.MoveNext(), Is.False);
+            Assert.That(sessions.Single(), Is.SameAs(retainedSession));
+        });
+    }
+
     private static LocalPeer CreatePeer()
         => new(new Identity(Enumerable.Repeat((byte)42, 32).ToArray()), null, new ProtocolStackSettings());
 }

@@ -40,7 +40,24 @@ public class SessionLifecycleTests
 
         await outgoingSession.DisconnectAsync();
 
-        Assert.That(outgoingSessions, Is.Empty);
+        await WaitUntilAsync(() => incomingSessions.Count == 0, TimeSpan.FromSeconds(5));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(outgoingSessions, Is.Empty);
+            Assert.That(incomingSessions, Is.Empty);
+        });
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        DateTime deadline = DateTime.UtcNow.Add(timeout);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
+
+        Assert.That(condition(), Is.True, "Condition was not met before timeout.");
     }
 
     private sealed class SessionLifecycleE2eTestSetup : E2eTestSetup

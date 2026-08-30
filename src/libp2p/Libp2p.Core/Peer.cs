@@ -32,6 +32,11 @@ public partial class LocalPeer(Identity identity, PeerStore? peerStore, IProtoco
     private readonly Dictionary<object, TaskCompletionSource<Multiaddress>> listenerReadyTcs = [];
     private readonly ConcurrentDictionary<PeerId, Task<ISession>> _pendingDials = new();
     private IReadOnlyCollection<ISession>? _sessionsView;
+
+    /// <summary>
+    /// Gets the legacy concrete session collection. External mutation is unsupported;
+    /// application code should access sessions through <see cref="ILocalPeer.Sessions"/>.
+    /// </summary>
     public ObservableCollection<Session> Sessions { get; } = [];
     IReadOnlyCollection<ISession> ILocalPeer.Sessions => GetSessionsView();
 
@@ -43,40 +48,40 @@ public partial class LocalPeer(Identity identity, PeerStore? peerStore, IProtoco
             return view;
         }
 
-        view = new SessionCollectionView(Sessions);
+        view = new SessionCollectionView(this);
         return Interlocked.CompareExchange(ref _sessionsView, view, null) ?? view;
     }
 
-    private sealed class SessionCollectionView(ObservableCollection<Session> sessions) : IReadOnlyCollection<ISession>
+    private Session[] GetSessionsSnapshot()
+    {
+        lock (Sessions)
+        {
+            return [.. Sessions];
+        }
+    }
+
+    private sealed class SessionCollectionView(LocalPeer peer) : IReadOnlyCollection<ISession>
     {
         public int Count
         {
             get
             {
-                lock (sessions)
+                lock (peer.Sessions)
                 {
-                    return sessions.Count;
+                    return peer.Sessions.Count;
                 }
             }
         }
 
         public IEnumerator<ISession> GetEnumerator()
-        {
-            ISession[] snapshot;
-            lock (sessions)
-            {
-                snapshot = [.. sessions];
-            }
-
-            return ((IEnumerable<ISession>)snapshot).GetEnumerator();
-        }
+            => ((IEnumerable<ISession>)peer.GetSessionsSnapshot()).GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     public override string ToString()
     {
-        return $"peer({Identity.PeerId}): addresses {string.Join(",", ListenAddresses.ToArray().Select(la => la.ToString()))} sessions {string.Join("|", Sessions.ToArray().Select(x => $"{x?.State?.RemotePeerId}"))}";
+        return $"peer({Identity.PeerId}): addresses {string.Join(",", ListenAddresses.ToArray().Select(la => la.ToString()))} sessions {string.Join("|", GetSessionsSnapshot().Select(x => $"{x?.State?.RemotePeerId}"))}";
     }
 
     public Identity Identity { get; } = identity;
@@ -288,7 +293,7 @@ public partial class LocalPeer(Identity identity, PeerStore? peerStore, IProtoco
             throw new Libp2pException($"No address was passed into {nameof(DialAsync)}");
         }
 
-        ISession? existingSession = Sessions.FirstOrDefault(s => s.State.RemotePeerId == remotePeerId);
+        ISession? existingSession = GetSessionsSnapshot().FirstOrDefault(s => s.State.RemotePeerId == remotePeerId);
 
         if (existingSession is not null)
         {
@@ -496,7 +501,7 @@ public partial class LocalPeer(Identity identity, PeerStore? peerStore, IProtoco
 
     public Task<ISession> DialAsync(PeerId peerId, CancellationToken token = default)
     {
-        ISession? existingSession = Sessions.FirstOrDefault(s => s.State.RemotePeerId == peerId);
+        ISession? existingSession = GetSessionsSnapshot().FirstOrDefault(s => s.State.RemotePeerId == peerId);
 
         if (existingSession is not null)
         {
@@ -721,7 +726,7 @@ public partial class LocalPeer(Identity identity, PeerStore? peerStore, IProtoco
 
     public async ValueTask DisposeAsync()
     {
-        await Task.WhenAll(Sessions.ToArray().Select(s => s?.DisconnectAsync() ?? Task.CompletedTask));
+        await Task.WhenAll(GetSessionsSnapshot().Select(s => s?.DisconnectAsync() ?? Task.CompletedTask));
         peerActivity?.Dispose();
     }
 }

@@ -30,16 +30,15 @@ ISession session = await peer.DialAsync(remoteAddress);
 
 ```csharp
 IReadOnlyCollection<ISession> sessions = peer.Sessions;
-
-foreach (ISession currentSession in sessions.ToArray())
-{
-    Console.WriteLine($"Connected to {currentSession.RemoteAddress}");
-}
+ISession[] snapshot = sessions.ToArray();
+Console.WriteLine($"{snapshot.Length} sessions are currently registered.");
 ```
 
 Sessions enter the view during session upgrade and leave it when disconnected. `Count` and each enumeration are synchronized with those lifecycle changes; each enumeration uses a point-in-time snapshot. Calling `ToArray()` makes that snapshot explicit when subsequent work spans `await` calls. Later `Count` calls and enumerations reflect the latest sessions, while an existing enumeration or array remains unchanged.
 
 A session enters the view during upgrade, before its initialization and `OnConnected` have necessarily completed. Use the session returned by `DialAsync` or delivered through `OnConnected` when fully initialized sessions are required.
+
+Applications should use `ILocalPeer.Sessions`. The legacy concrete `LocalPeer.Sessions` collection remains mutable for source compatibility, but direct mutation is unsupported.
 
 ## Dialing application protocols
 
